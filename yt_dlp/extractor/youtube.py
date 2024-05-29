@@ -5142,6 +5142,17 @@ class YoutubeTabBaseInfoExtractor(YoutubeBaseInfoExtractor):
 
         channel_banners = self._extract_thumbnails(
             data, ('header', ..., ('banner', 'mobileBanner', 'tvBanner')))
+        # ***********************
+        # Banner info is being moved to new location in ytInitialData from about April/May 2024. Youtube is currently
+        # (28 May 2024) A/B-testing the new JSON format.
+        if not channel_banners:
+            banner_dict = traverse_obj(data, ('header', ..., 'content', ..., 'banner', ..., 'image', {dict}),
+                                       get_all=False)
+            # self.to_screen(f'banner_dict: {banner_dict}') # for testing
+            if banner_dict:
+                banner_dict['thumbnails'] = banner_dict.pop('sources')
+                channel_banners = self._extract_thumbnails(banner_dict, ())
+        # ***********************
         for banner in channel_banners:
             banner['preference'] = -10
 
@@ -5163,12 +5174,30 @@ class YoutubeTabBaseInfoExtractor(YoutubeBaseInfoExtractor):
         playlist_thumbnails = self._extract_thumbnails(
             playlist_header_renderer, ('playlistHeaderBanner', 'heroPlaylistThumbnailRenderer', 'thumbnail'))
 
+        # ***********************
+        subs_count = self._get_count(data, ('header', ..., 'subscriberCountText'))
+        # Alternate location for subscriber-count
+        # - Subscriber count is being moved to new location in ytInitialData from about April/May 2024. Youtube is
+        #   currently (28 May 2024) A/B-testing the new JSON format.
+        if not subs_count:
+            metadata_parts = traverse_obj(data, ('header', ..., 'content', ..., 'metadata', ...,
+                                                       'metadataRows', ..., 'metadataParts', ..., 'text', 'content',
+                                                       {str}))
+            # self.to_screen(f'metadata_parts: {metadata_parts}') # for testing
+            if metadata_parts:
+                subs_count = parse_count(re.sub(r'(.*) subscribers', r'\1',
+                                                    next(filter(lambda x: ' subscribers' in x, metadata_parts), None)))
+            self.to_screen(f'*******************') # for testing
+            self.to_screen(f'Subscriber-Count obtained by alternate method: {subs_count}') # for testing
+            self.to_screen(f'*******************') # for testing
+        # ***********************
+
         info.update({
             'title': (traverse_obj(metadata_renderer, 'title')
                       or self._get_text(data, ('header', 'hashtagHeaderRenderer', 'hashtag'))
                       or info['id']),
             'availability': self._extract_availability(data),
-            'channel_follower_count': self._get_count(data, ('header', ..., 'subscriberCountText')),
+            'channel_follower_count': subs_count,
             'description': try_get(metadata_renderer, lambda x: x.get('description', '')),
             'tags': (traverse_obj(data, ('microformat', 'microformatDataRenderer', 'tags', ..., {str}))
                      or traverse_obj(metadata_renderer, ('keywords', {lambda x: x and shlex.split(x)}, ...))),
