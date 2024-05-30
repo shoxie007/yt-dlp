@@ -5146,12 +5146,11 @@ class YoutubeTabBaseInfoExtractor(YoutubeBaseInfoExtractor):
         # Banner info is being moved to new location in ytInitialData from about April/May 2024. Youtube is currently
         # (28 May 2024) A/B-testing the new JSON format.
         if not channel_banners:
-            banner_dict = traverse_obj(data, ('header', ..., 'content', ..., 'banner', ..., 'image', {dict}),
+            banner_dict = traverse_obj(data, ('header', ..., 'content', ..., 'banner', ..., 'image', 'sources', {list}),
                                        get_all=False)
-            # self.to_screen(f'banner_dict: {banner_dict}') # for testing
+            #self.to_screen(f'banner_dict: {banner_dict}') # for testing
             if banner_dict:
-                banner_dict['thumbnails'] = banner_dict.pop('sources')
-                channel_banners = self._extract_thumbnails(banner_dict, ())
+                channel_banners = self._extract_thumbnails({'thumbnails': banner_dict}, ())
         # ***********************
         for banner in channel_banners:
             banner['preference'] = -10
